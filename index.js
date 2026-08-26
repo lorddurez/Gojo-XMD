@@ -5,7 +5,11 @@ import makeWASocket, {
 
 import pino from "pino";
 import readline from "readline";
+
 import { config } from "./config.js";
+import { getCommand } from "./lib/commandHandler.js";
+import { getMessageText } from "./lib/message.js";
+import { loadCommands } from "./lib/commandLoader.js";
 
 const logger = pino({ level: "silent" });
 
@@ -32,14 +36,14 @@ async function startBot() {
 
     sock.ev.on("creds.update", saveCreds);
 
-    if (!state.creds.registered) {
-        console.log("\n╭────────────────────────╮");
-        console.log("│       GOJO XMD          │");
-        console.log("│   WhatsApp Pairing      │");
-        console.log("╰────────────────────────╯\n");
+    const commands = await loadCommands();
 
+    console.log(`\n🤖 ${config.botName} starting...`);
+    console.log(`📦 Commands loaded: ${commands.size}`);
+
+    if (!state.creds.registered) {
         let number = await ask(
-            "Enter WhatsApp number with country code:\n> "
+            "\n📱 Enter WhatsApp number with country code:\n> "
         );
 
         number = number.replace(/\D/g, "");
@@ -53,43 +57,69 @@ async function startBot() {
 
         const code = await sock.requestPairingCode(number);
 
-        console.log("╭────────────────────────╮");
-        console.log(`│ Pairing Code: ${code} │`);
-        console.log("╰────────────────────────╯\n");
-
+        console.log(`🔐 Pairing Code: ${code}`);
         console.log(
-            "Open WhatsApp → Linked Devices → Link with phone number."
+            "\nOpen WhatsApp → Linked Devices → Link with phone number."
         );
     }
 
-    sock.ev.on("connection.update", ({ connection, lastDisconnect }) => {
-        if (connection === "open") {
-            console.log("\n✅ GOJO XMD connected successfully!");
-            console.log(`🤖 Bot: ${config.botName}`);
-        }
+    sock.ev.on(
+        "connection.update",
+        ({ connection, lastDisconnect }) => {
 
-        if (connection === "close") {
-            const statusCode =
-                lastDisconnect?.error?.output?.statusCode;
+            if (connection === "open") {
+                console.log(
+                    `\n✅ ${config.botName} is online!`
+                );
+            }
 
-            if (statusCode !== DisconnectReason.loggedOut) {
-                console.log("🔄 Connection closed. Reconnecting...");
-                startBot();
-            } else {
-                console.log("❌ WhatsApp session logged out.");
+            if (connection === "close") {
+                const statusCode =
+                    lastDisconnect?.error?.output?.statusCode;
+
+                if (statusCode !== DisconnectReason.loggedOut) {
+                    console.log("🔄 Reconnecting...");
+                    startBot();
+                } else {
+                    console.log("❌ WhatsApp session logged out.");
+                }
             }
         }
-    });
+    );
 
     sock.ev.on("messages.upsert", async ({ messages }) => {
         const message = messages[0];
 
         if (!message?.message) return;
 
-        console.log("📩 New message received");
+        const text = getMessageText(message);
+
+        if (!text) return;
+
+        const { command, args } =
+            getCommand(text, config.prefix);
+
+        if (!command) return;
+
+        const cmd = commands.get(command);
+
+        if (!cmd) return;
+
+        try {
+            await cmd.execute(
+                sock,
+                message,
+                args
+            );
+        } catch (error) {
+            console.error(
+                `❌ Error in .${command}:`,
+                error
+            );
+        }
     });
 }
 
 startBot().catch(error => {
-    console.error("❌ Bot error:", error);
+    console.error("❌ Fatal error:", error);
 });
