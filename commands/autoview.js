@@ -8,14 +8,14 @@ export default {
         const option = args[0]?.toLowerCase();
 
         if (!["on", "off"].includes(option)) {
-            const current = getSetting(jid, "autoview");
+            const current = getSetting("global", "autoview");
 
             return sock.sendMessage(jid, {
                 text: `👀 Auto-view status: ${current ? "ON" : "OFF"}\n\nUse: .autoview on/off`
             }, { quoted: message });
         }
 
-        setSetting(jid, "autoview", option === "on");
+        setSetting("global", "autoview", option === "on");
 
         await sock.sendMessage(jid, {
             text: `👀 Auto-view status: *${option.toUpperCase()}*`
