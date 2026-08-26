@@ -2,13 +2,27 @@ export default {
     name: "ping",
 
     async execute(sock, message) {
-        await sock.sendMessage(
+        const start = Date.now();
+
+        const sent = await sock.sendMessage(
             message.key.remoteJid,
             {
-                text: "🏓 Pong!\n\n🤖 GOJO XMD"
+                text: "🏓 Checking speed..."
             },
             {
                 quoted: message
+            }
+        );
+
+        const speed = Date.now() - start;
+
+        await sock.sendMessage(
+            message.key.remoteJid,
+            {
+                text: `🏓 *PONG!*\n\n⚡ Speed: ${speed}ms\n🤖 GOJO XMD`
+            },
+            {
+                quoted: sent
             }
         );
     }
