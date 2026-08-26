@@ -89,6 +89,101 @@ async function startBot() {
     );
 
     sock.ev.on("messages.upsert", async ({ messages }) => {
+    for (const message of messages) {
+        if (!message?.message) continue;
+        if (message.key.fromMe) continue;
+
+        const jid = message.key.remoteJid;
+        if (!jid) continue;
+
+        try {
+            // 👀 AUTO VIEW STATUS
+            if (jid === "status@broadcast") {
+                if (getSetting("global", "autoview")) {
+                    await sock.readMessages([message.key]);
+                }
+                continue;
+            }
+
+            // ❤️ AUTO REACT
+            if (getSetting(jid, "autoreact")) {
+                await sock.sendMessage(jid, {
+                    react: {
+                        text: "❤️",
+                        key: message.key
+                    }
+                });
+            }
+
+            // 💬 AUTO REACT CHAT
+            if (
+                jid.endsWith("@s.whatsapp.net") &&
+                getSetting(jid, "autoreactchat")
+            ) {
+                await sock.sendMessage(jid, {
+                    react: {
+                        text: "💬",
+                        key: message.key
+                    }
+                });
+            }
+
+            // 🎙️ AUTO RECORD
+            if (getSetting(jid, "autorecord")) {
+                await sock.sendPresenceUpdate("recording", jid);
+
+                setTimeout(async () => {
+                    try {
+                        await sock.sendPresenceUpdate(
+                            "paused",
+                            jid
+                        );
+                    } catch {}
+                }, 1500);
+            }
+
+            // ⌨️ AUTO TYPE
+            if (getSetting(jid, "autotype")) {
+                await sock.sendPresenceUpdate("composing", jid);
+
+                setTimeout(async () => {
+                    try {
+                        await sock.sendPresenceUpdate(
+                            "paused",
+                            jid
+                        );
+                    } catch {}
+                }, 1500);
+            }
+
+            // 🤖 COMMAND HANDLER
+            const text = getMessageText(message);
+
+            if (!text) continue;
+
+            const { command, args } =
+                getCommand(text, config.prefix);
+
+            if (!command) continue;
+
+            const cmd = commands.get(command);
+
+            if (!cmd) continue;
+
+            await cmd.execute(
+                sock,
+                message,
+                args
+            );
+
+        } catch (error) {
+            console.error(
+                "❌ Message handling error:",
+                error
+            );
+        }
+    }
+}); => {
         const message = messages[0];
 
         if (!message?.message) return;
