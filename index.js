@@ -1,3 +1,4 @@
+import { getSetting } from "./lib/settings.js";
 import makeWASocket, {
     useMultiFileAuthState,
     DisconnectReason
